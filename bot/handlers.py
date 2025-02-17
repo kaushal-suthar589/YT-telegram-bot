@@ -27,8 +27,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         track_user(user.id, user.username or "", user.first_name)
 
         welcome_msg = (
-            f"👋 नमस्ते {user.first_name} YouTube वीडियो डाउनलोड बॉट में आपका स्वागत है 🫶\n\n"
-            "⏩ पहले दिए गए चैनल्स को join करें और फिर आप कोई भी वीडियो डाउनलोड कर सकते हैं 📷"
+            f"👋 Hello {user.first_name} Welcome to YouTube Video Download Bot 🫶\n\n"
+            "⏩ First join the given channels and then you can download any video 📷"
         )
 
         keyboard = [
@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         logger.error(f"Error in start command: {e}", exc_info=True)
         if update and update.message:
-            await update.message.reply_text("कृपया थोड़ी देर बाद फिर से कोशिश करें।")
+            await update.message.reply_text("Please try again later.")
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle callback queries from inline keyboards"""
@@ -59,8 +59,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         if query.data == "joined":
             await query.message.edit_text(
-                "अब आप कोई भी YouTube वीडियो लिंक भेज सकते हैं।\n"
-                "मैं इसे डाउनलोड करके आपको भेज दूंगा। 📥"
+                "Now you can send any YouTube video link.\n"
+                "I will download and send it to you. 📥"
             )
             logger.info(f"User {query.from_user.id} completed joining process")
 
@@ -207,7 +207,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         try:
             _, url, format_id = query.data.split("_")
             status_msg = await query.message.reply_text("⬇️ Downloading video...")
-            
+
             video_path = await downloader.download_video(url, format_id, status_msg)
             if not video_path:
                 await status_msg.edit_text("❌ Failed to download video")
@@ -221,7 +221,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     caption="✅ Downloaded using @YourBotUsername"
                 )
             await status_msg.delete()
-            
+
             # Cleanup
             if os.path.exists(video_path):
                 os.remove(video_path)

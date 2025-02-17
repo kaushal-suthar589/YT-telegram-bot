@@ -46,9 +46,14 @@ async def main() -> None:
         cleanup_pid()
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+    while True:
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            logger.info("Bot stopped by user")
+            break
+        except Exception as e:
+            logger.error(f"Fatal error: {e}", exc_info=True)
+            # Wait 10 seconds before retrying
+            time.sleep(10)
+            continue
