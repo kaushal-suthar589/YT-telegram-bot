@@ -1,0 +1,150 @@
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
+import logging
+import os
+from bot.config import ADMIN_IDS, REQUIRED_CHANNELS
+from bot.utils import track_user, load_user_data
+from bot.downloader import VideoDownloader
+
+logger = logging.getLogger(__name__)
+downloader = VideoDownloader()
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /start command"""
+    if not update.message:
+        return
+
+    user = update.message.from_user
+    track_user(user.id, user.username or "", user.first_name)
+
+    welcome_msg = (
+        f"👋 Hey {user.first_name} Welcome to YouTube Video download bot 🫶\n\n"
+        "⏩First join any of the given channels and then you can download any 📷"
+    )
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Join", url=f"https://t.me/{channel}")
+            for channel in REQUIRED_CHANNELS
+        ],
+        [InlineKeyboardButton("Joined ✅", callback_data="joined")]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
+
+async def check_member(bot, user_id: int, channel: str) -> bool:
+    """Check if user is member of required channel"""
+    try:
+        member = await bot.get_chat_member(chat_id=f"@{channel}", user_id=user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except Exception:
+        return False
+
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle broadcast command for admins"""
+    if not update.message:
+        return
+
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    try:
+        broadcast_message = ' '.join(context.args)
+        if not broadcast_message:
+            await update.message.reply_text(
+                "Please provide a message to broadcast.\n"
+                "Usage: /broadcast <message>"
+            )
+            return
+
+        user_data = load_user_data()
+        success_count = 0
+        fail_count = 0
+
+        for user in user_data['users']:
+            try:
+                await context.bot.send_message(
+                    chat_id=user['id'],
+                    text=broadcast_message
+                )
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to send broadcast to user {user['id']}: {e}")
+                fail_count += 1
+
+        await update.message.reply_text(
+            f"Broadcast completed!\n"
+            f"✅ Successfully sent: {success_count}\n"
+            f"❌ Failed: {fail_count}"
+        )
+
+    except Exception as e:
+        logger.error(f"Broadcast error: {e}")
+        await update.message.reply_text(f"Error during broadcast: {str(e)}")
+
+async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle YouTube video links"""
+    if not update.message:
+        return
+
+    message = update.message.text
+
+    if 'youtube.com' not in message and 'youtu.be' not in message:
+        await update.message.reply_text('Please provide a valid YouTube link')
+        return
+
+    user_id = update.message.from_user.id
+    for channel in REQUIRED_CHANNELS:
+        if not await check_member(context.bot, user_id, channel):
+            keyboard = [
+                [InlineKeyboardButton("Join", url=f"https://t.me/{channel}")]
+                for channel in REQUIRED_CHANNELS
+            ]
+            keyboard.append([InlineKeyboardButton("Joined ✅", callback_data="joined")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await update.message.reply_text(
+                "❌ Join the required channels first",
+                reply_markup=reply_markup
+            )
+            return
+
+    status_message = await update.message.reply_text('⌛ Fetching video information...')
+
+    try:
+        formats, info = downloader.extract_video_info(message)
+        quality_groups = downloader.group_formats_by_quality(formats)
+
+        keyboard = []
+        for height, data in quality_groups.items():
+            if data:
+                keyboard.append([InlineKeyboardButton(
+                    f"📺 {data['description']}",
+                    callback_data=f"format_{message}_{data['format']['format_id']}"
+                )])
+
+        if not keyboard:
+            await status_message.edit_text(
+                'Sorry, no available quality options found for this video.\n'
+                'Please try another link.'
+            )
+            return
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await status_message.edit_text(
+            f'Title: {info.get("title")}\n\n'
+            'Select video quality:\n'
+            '(Available quality: 144p to 1080p)\n'
+            '⚠️ = File size larger than 1000MB',
+            reply_markup=reply_markup
+        )
+
+    except Exception as e:
+        logger.error(f"Error in handle_youtube_link: {str(e)}")
+        await status_message.edit_text(
+            'Error getting video information.\n'
+            'Please try another link or try again later.'
+        )
