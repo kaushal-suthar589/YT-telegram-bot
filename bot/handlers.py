@@ -1,3 +1,5 @@
+import logging
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import logging
@@ -47,26 +49,65 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("Please try again later.")
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle callback queries from inline keyboards"""
-    try:
-        query = update.callback_query
-        if not query:
-            logger.error("No callback query in update")
-            return
+    """Handle callback queries from inline keyboard buttons"""
+    if not update.callback_query:
+        logger.error("No callback query in update")
+        return
 
-        logger.info(f"Handling callback query with data: {query.data}")
-        await query.answer()
+    query = update.callback_query
+    logger.info(f"Received callback query: {query.data} from user {query.from_user.id}")
+    await query.answer()
 
-        if query.data == "joined":
-            await query.message.delete()
-            await query.message.reply_text(
-                "✅You can now send any YouTube video link.\n"
-                "I will download and send it to you. 📥"
-            )
-            logger.info(f"User {query.from_user.id} completed joining process")
+    if query.data == "joined":
+        # Check if user has actually joined all channels
+        for channel in REQUIRED_CHANNELS:
+            if not await check_member(context.bot, query.from_user.id, channel):
+                logger.info(f"User {query.from_user.id} hasn't joined channel {channel}")
+                await query.message.reply_text(
+                    "❌ Please join all required channels first!"
+                )
+                return
 
-    except Exception as e:
-        logger.error(f"Error in handle_callback: {e}", exc_info=True)
+        chat_id = query.message.chat_id
+        logger.info(f"User {query.from_user.id} has joined all channels, sending welcome message")
+
+        # Send new message first
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="✅You can now send any YouTube video link.\n"
+                 "I will download and send it to you. 📥"
+        )
+        # Then delete the old message
+        await query.message.delete()
+        logger.info(f"Completed joined process for user {query.from_user.id}")
+        return
+
+    if query.data.startswith("format_"):
+        try:
+            _, url, format_id = query.data.split("_")
+            status_msg = await query.message.reply_text("⬇️ Downloading video...")
+
+            video_path = await downloader.download_video(url, format_id, status_msg)
+            if not video_path:
+                await status_msg.edit_text("❌ Failed to download video")
+                return
+
+            await status_msg.edit_text("📤 Uploading to Telegram...")
+            with open(video_path, 'rb') as video_file:
+                await context.bot.send_video(
+                    chat_id=query.message.chat_id,
+                    video=video_file,
+                    caption="✅ Downloaded using @YourBotUsername"
+                )
+            await status_msg.delete()
+
+            # Cleanup
+            if os.path.exists(video_path):
+                os.remove(video_path)
+
+        except Exception as e:
+            logger.error(f"Error in handle_callback: {e}")
+            await query.message.reply_text("❌ Error processing your request")
 
 async def check_member(bot, user_id: int, channel: str) -> bool:
     """Check if user is member of required channel"""
@@ -182,51 +223,3 @@ async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE
             'Error getting video information.\n'
             'Please try another link or try again later.'
         )
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle callback queries from inline keyboard buttons"""
-    if not update.callback_query:
-        return
-
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == "joined":
-        # Check if user has actually joined all channels
-        for channel in REQUIRED_CHANNELS:
-            if not await check_member(context.bot, query.from_user.id, channel):
-                await query.message.reply_text(
-                    "❌ Please join all required channels first!"
-                )
-                return
-
-        await query.message.reply_text(
-            "✅ Thank you for joining! You can now send YouTube links to download videos."
-        )
-        return
-
-    if query.data.startswith("format_"):
-        try:
-            _, url, format_id = query.data.split("_")
-            status_msg = await query.message.reply_text("⬇️ Downloading video...")
-
-            video_path = await downloader.download_video(url, format_id, status_msg)
-            if not video_path:
-                await status_msg.edit_text("❌ Failed to download video")
-                return
-
-            await status_msg.edit_text("📤 Uploading to Telegram...")
-            with open(video_path, 'rb') as video_file:
-                await context.bot.send_video(
-                    chat_id=query.message.chat_id,
-                    video=video_file,
-                    caption="✅ Downloaded using @YourBotUsername"
-                )
-            await status_msg.delete()
-
-            # Cleanup
-            if os.path.exists(video_path):
-                os.remove(video_path)
-
-        except Exception as e:
-            logger.error(f"Error in handle_callback: {e}")
-            await query.message.reply_text("❌ Error processing your request")
