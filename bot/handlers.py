@@ -181,3 +181,51 @@ async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE
             'Error getting video information.\n'
             'Please try another link or try again later.'
         )
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle callback queries from inline keyboard buttons"""
+    if not update.callback_query:
+        return
+
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "joined":
+        # Check if user has actually joined all channels
+        for channel in REQUIRED_CHANNELS:
+            if not await check_member(context.bot, query.from_user.id, channel):
+                await query.message.reply_text(
+                    "❌ Please join all required channels first!"
+                )
+                return
+
+        await query.message.reply_text(
+            "✅ Thank you for joining! You can now send YouTube links to download videos."
+        )
+        return
+
+    if query.data.startswith("format_"):
+        try:
+            _, url, format_id = query.data.split("_")
+            status_msg = await query.message.reply_text("⬇️ Downloading video...")
+            
+            video_path = await downloader.download_video(url, format_id)
+            if not video_path:
+                await status_msg.edit_text("❌ Failed to download video")
+                return
+
+            await status_msg.edit_text("📤 Uploading to Telegram...")
+            with open(video_path, 'rb') as video_file:
+                await context.bot.send_video(
+                    chat_id=query.message.chat_id,
+                    video=video_file,
+                    caption="✅ Downloaded using @YourBotUsername"
+                )
+            await status_msg.delete()
+            
+            # Cleanup
+            if os.path.exists(video_path):
+                os.remove(video_path)
+
+        except Exception as e:
+            logger.error(f"Error in handle_callback: {e}")
+            await query.message.reply_text("❌ Error processing your request")
