@@ -1,5 +1,14 @@
 # Telegram YouTube Downloader Bot
 
+## Features
+- Download YouTube videos in various qualities
+- Channel subscription verification
+- Admin broadcast functionality
+- 24/7 continuous operation
+- Error handling and auto-restart mechanisms
+- Multilingual support
+- Persistent download management
+
 ## Deployment to Render
 
 1. Create a new Web Service on Render
