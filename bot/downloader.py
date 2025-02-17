@@ -66,9 +66,9 @@ class VideoDownloader:
                 logger.error(f"Format extraction error: {e}")
                 raise
 
-    def group_formats_by_quality(self, formats: List[Dict[str, Any]]) -> Dict[int, Optional[Dict[str, Any]]]:
+    def group_formats_by_quality(self, formats: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
         """Group video formats by quality"""
-        quality_groups = {
+        quality_groups: Dict[int, Optional[Dict[str, Any]]] = {
             1080: None,
             720: None,
             480: None,

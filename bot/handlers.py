@@ -1,6 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from telegram.constants import ParseMode
 import logging
 import os
 from bot.config import ADMIN_IDS, REQUIRED_CHANNELS
@@ -12,27 +11,40 @@ downloader = VideoDownloader()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command"""
-    if not update.message:
-        return
+    logger.info("Start command received")
 
-    user = update.message.from_user
-    track_user(user.id, user.username or "", user.first_name)
+    try:
+        if not update.message:
+            logger.error("No message in update")
+            return
 
-    welcome_msg = (
-        f"👋 Hey {user.first_name} Welcome to YouTube Video download bot 🫶\n\n"
-        "⏩First join any of the given channels and then you can download any 📷"
-    )
+        user = update.message.from_user
+        if not user:
+            logger.error("No user in message")
+            return
 
-    keyboard = [
-        [
-            InlineKeyboardButton("Join", url=f"https://t.me/{channel}")
-            for channel in REQUIRED_CHANNELS
-        ],
-        [InlineKeyboardButton("Joined ✅", callback_data="joined")]
-    ]
+        logger.info(f"Processing start command for user {user.id}")
+        track_user(user.id, user.username or "", user.first_name)
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
+        welcome_msg = (
+            f"👋 नमस्ते {user.first_name} YouTube वीडियो डाउनलोड बॉट में आपका स्वागत है 🫶\n\n"
+            "⏩ पहले दिए गए चैनल्स को join करें और फिर आप कोई भी वीडियो डाउनलोड कर सकते हैं 📷"
+        )
+
+        keyboard = [
+            [InlineKeyboardButton("Join", url=f"https://t.me/{channel}") for channel in REQUIRED_CHANNELS],
+            [InlineKeyboardButton("Joined ✅", callback_data="joined")]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        logger.info("Sending welcome message")
+        await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
+        logger.info(f"Start command completed for user {user.id}")
+
+    except Exception as e:
+        logger.error(f"Error in start command: {e}", exc_info=True)
+        if update and update.message:
+            await update.message.reply_text("कृपया थोड़ी देर बाद फिर से कोशिश करें।")
 
 async def check_member(bot, user_id: int, channel: str) -> bool:
     """Check if user is member of required channel"""
