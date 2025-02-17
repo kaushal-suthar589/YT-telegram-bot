@@ -7,7 +7,7 @@ from bot.config import BOT_TOKEN, logger
 from bot.handlers import start, broadcast, handle_youtube_link
 from bot.utils import check_single_instance, cleanup_pid, check_ffmpeg
 
-async def handle_callback(update, context):
+async def handle_callback(update: Update, context):
     """Handle callback queries from inline keyboards"""
     query = update.callback_query
     await query.answer()
@@ -53,17 +53,9 @@ async def main() -> None:
 
     except Exception as e:
         logger.error(f"Critical error in main: {e}", exc_info=True)
-        cleanup_pid()
     finally:
         logger.info("Shutting down...")
         cleanup_pid()
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
-    finally:
-        cleanup_pid()
+    asyncio.run(main())
