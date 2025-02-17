@@ -37,14 +37,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        logger.info("Sending welcome message")
-        await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
-        logger.info(f"Start command completed for user {user.id}")
+        logger.info(f"Sending welcome message to user {user.id}")
+        sent_message = await update.message.reply_text(welcome_msg, reply_markup=reply_markup)
+        logger.info(f"Welcome message sent successfully to user {user.id}")
 
     except Exception as e:
         logger.error(f"Error in start command: {e}", exc_info=True)
         if update and update.message:
             await update.message.reply_text("कृपया थोड़ी देर बाद फिर से कोशिश करें।")
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle callback queries from inline keyboards"""
+    try:
+        query = update.callback_query
+        if not query:
+            logger.error("No callback query in update")
+            return
+
+        logger.info(f"Handling callback query with data: {query.data}")
+        await query.answer()
+
+        if query.data == "joined":
+            await query.message.edit_text(
+                "अब आप कोई भी YouTube वीडियो लिंक भेज सकते हैं।\n"
+                "मैं इसे डाउनलोड करके आपको भेज दूंगा। 📥"
+            )
+            logger.info(f"User {query.from_user.id} completed joining process")
+
+    except Exception as e:
+        logger.error(f"Error in handle_callback: {e}", exc_info=True)
 
 async def check_member(bot, user_id: int, channel: str) -> bool:
     """Check if user is member of required channel"""
