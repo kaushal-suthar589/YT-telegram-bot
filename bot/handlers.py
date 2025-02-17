@@ -208,7 +208,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             _, url, format_id = query.data.split("_")
             status_msg = await query.message.reply_text("⬇️ Downloading video...")
             
-            video_path = await downloader.download_video(url, format_id)
+            video_path = await downloader.download_video(url, format_id, status_msg)
             if not video_path:
                 await status_msg.edit_text("❌ Failed to download video")
                 return
