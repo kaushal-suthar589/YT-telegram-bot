@@ -58,8 +58,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.answer()
 
         if query.data == "joined":
-            await query.message.edit_text(
-                "Now you can send any YouTube video link.\n"
+            await query.message.delete()
+            await query.message.reply_text(
+                "✅You can now send any YouTube video link.\n"
                 "I will download and send it to you. 📥"
             )
             logger.info(f"User {query.from_user.id} completed joining process")
